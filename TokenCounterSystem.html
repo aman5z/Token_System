@@ -59,11 +59,15 @@ body{
   position:sticky;
   top:0;
   z-index:100;
+  position:relative;
 }
 #clock{
   font-size:15px;
   color:var(--subtext);
   font-variant-numeric:tabular-nums;
+  position:absolute;
+  left:50%;
+  transform:translateX(-50%);
 }
 
 /* ── THEME TOGGLE ── */
@@ -237,7 +241,7 @@ th{color:var(--subtext);font-size:13px;text-transform:uppercase;}
   <div id="dashboard" style="display:none">
 
     <div class="card">
-      <h3><button class="logout" onclick="logout()">Logout</button></h3>
+      <h3> <button class="logout" onclick="logout()">Logout</button></h3>
       <h3>Ticket Setup</h3>
       <input id="printTitleInput" placeholder="Heading (Example: Clinic Name)" autocomplete="off">
       <input id="printSubInput" placeholder="Sub Heading (Example: Token Service)" autocomplete="off">
@@ -255,6 +259,7 @@ th{color:var(--subtext);font-size:13px;text-transform:uppercase;}
         <div id="printTime"></div>
       </div>
       <button onclick="printTicket()">Print Token</button>
+      <a href="https://aman5z.github.io/Token_System/TokenDisplay.html" target="_blank"><button type="button" style="background:#8b5cf6;margin-left:8px;">📺 View Display</button></a>
     </div>
 
     <div class="card">
