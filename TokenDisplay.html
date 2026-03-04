@@ -19,15 +19,7 @@ align-items:center;
 justify-content:center;
 overflow:hidden;
 }
-.header{
-position:absolute;
-top:30px;
-font-size:40px;
-font-weight:bold;
-letter-spacing:3px;
-color:#38bdf8;
-text-shadow:0 0 15px rgba(56,189,248,0.6);
-}
+
 .grid{
 width:92%;
 display:grid;
@@ -68,12 +60,7 @@ animation:flashAnim 0.9s ease forwards;
 40% { transform:scale(1.3); filter:brightness(2.5); }
 100%{ transform:scale(1);   filter:brightness(1);   }
 }
-.footer{
-position:absolute;
-bottom:20px;
-font-size:14px;
-opacity:0.6;
-}
+
 /* UNMUTE OVERLAY */
 #unmuteOverlay{
 position:fixed;
@@ -105,13 +92,11 @@ opacity:0.6;
 <body>
 
 <div id="unmuteOverlay" onclick="unlock()">
-  <div class="btn">▶ Click to Start Display</div>
-  <p>Audio and voice announcements require one click to activate</p>
+  <div class="btn">Click to Start Token Display</div>
 </div>
 
-<div class="header">TOKEN DISPLAY</div>
 <div class="grid" id="grid"></div>
-<div class="footer">Live Queue Display</div>
+
 
 <script>
 const API = "https://script.google.com/macros/s/AKfycbzkzFg2BMA0b-bOU-O7Zg9knhfL9-1Pw5QRdHk8NePBYPmZwQjEJeIeTjA9NJc0zcly1A/exec";
