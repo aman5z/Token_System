@@ -74,64 +74,87 @@ bottom:20px;
 font-size:14px;
 opacity:0.6;
 }
-/* UNMUTE BUTTON */
+/* UNMUTE OVERLAY */
 #unmuteOverlay{
 position:fixed;
-top:16px;
-right:16px;
+inset:0;
+background:rgba(2,6,23,0.92);
+display:flex;
+flex-direction:column;
+align-items:center;
+justify-content:center;
 z-index:999;
 cursor:pointer;
+gap:16px;
 }
 #unmuteOverlay .btn{
 background:#38bdf8;
 color:#000;
-font-size:14px;
+font-size:22px;
 font-weight:bold;
-padding:8px 18px;
-border-radius:8px;
+padding:18px 48px;
+border-radius:12px;
+letter-spacing:1px;
+}
+#unmuteOverlay p{
+font-size:15px;
+opacity:0.6;
 }
 </style>
 </head>
 <body>
 
 <div id="unmuteOverlay" onclick="unlock()">
-  <div class="btn">▶ Enable Audio</div>
+  <div class="btn">▶ Click to Start Display</div>
+  <p>Audio and voice announcements require one click to activate</p>
 </div>
 
-
+<div class="header">TOKEN DISPLAY</div>
 <div class="grid" id="grid"></div>
-
+<div class="footer">Live Queue Display</div>
 
 <script>
-
-const API = "https://script.google.com/macros/s/AKfycbyoaMx2_wAdgHIEBDslXotAHwmSa2wSqGeQjfRgOm6Wge0f4zJT8CTLmdMBYN30mRBAyg/exec";
+const API = "https://script.google.com/macros/s/AKfycbzkzFg2BMA0b-bOU-O7Zg9knhfL9-1Pw5QRdHk8NePBYPmZwQjEJeIeTjA9NJc0zcly1A/exec";
 
 let lastUpdated  = {};
 let initialized  = false;
 let audioUnlocked = false;
+let cbCount = 0;
 
-/* ── UNLOCK: must happen on a real user click ── */
+/* ── JSONP ── */
+function jsonp(params, callback){
+  const cbName = "_cb" + (++cbCount);
+  window[cbName] = function(data){
+    delete window[cbName];
+    const el = document.getElementById(cbName);
+    if(el) document.head.removeChild(el);
+    if(callback) callback(data);
+  };
+  params.callback = cbName;
+  const qs = Object.entries(params).map(([k,v])=>encodeURIComponent(k)+"="+encodeURIComponent(v)).join("&");
+  const s = document.createElement("script");
+  s.id = cbName;
+  s.src = API + "?" + qs;
+  document.head.appendChild(s);
+}
+
+/* ── UNLOCK ── */
 function unlock(){
   document.getElementById("unmuteOverlay").style.display = "none";
-
-  /* Warm up SpeechSynthesis */
   const warm = new SpeechSynthesisUtterance(" ");
   warm.volume = 0;
   speechSynthesis.speak(warm);
-
-  /* Warm up AudioContext */
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const buf = ctx.createBuffer(1, 1, 22050);
+  const buf = ctx.createBuffer(1,1,22050);
   const src = ctx.createBufferSource();
   src.buffer = buf;
   src.connect(ctx.destination);
   src.start(0);
-
   audioUnlocked = true;
   load();
 }
 
-/* ── BEEP using Web Audio (no external URL needed) ── */
+/* ── BEEP ── */
 function beep(){
   try{
     const ctx  = new (window.AudioContext || window.webkitAudioContext)();
@@ -145,91 +168,73 @@ function beep(){
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.6);
-  }catch(err){ console.warn("Beep error:", err); }
+  }catch(err){}
 }
 
 /* ── VOICE ── */
 function speak(message){
   try{
     speechSynthesis.cancel();
-    const utt   = new SpeechSynthesisUtterance(message);
-    utt.lang    = "en-US";
-    utt.rate    = 0.9;
-    utt.pitch   = 1;
-    utt.volume  = 1;
+    const utt = new SpeechSynthesisUtterance(message);
+    utt.lang="en-US"; utt.rate=0.9; utt.pitch=1; utt.volume=1;
     speechSynthesis.speak(utt);
-  }catch(err){ console.warn("Speak error:", err); }
+  }catch(err){}
 }
 
-/* ── FLASH animation (force reflow so it always replays) ── */
+/* ── FLASH ── */
 function triggerFlash(el){
   el.classList.remove("flash");
   void el.offsetWidth;
   el.classList.add("flash");
-  el.addEventListener("animationend", () => el.classList.remove("flash"), {once:true});
+  el.addEventListener("animationend",()=>el.classList.remove("flash"),{once:true});
 }
 
-/* ── MAIN LOAD & DIFF ── */
+/* ── LOAD ── */
 function load(){
   if(!audioUnlocked) return;
-
-  fetch(API, {
-    method: "POST",
-    body: new URLSearchParams({ action: "getCountersPublic" })
-  })
-  .then(r => r.json())
-  .then(data => {
-
+  jsonp({action:"getCountersPublic"}, function(data){
+    if(!Array.isArray(data)) return;
     const grid = document.getElementById("grid");
     const rows = data.slice(1);
-    const ids  = rows.map(r => String(r[0]));
+    const ids  = rows.map(r=>String(r[0]));
 
-    rows.forEach(row => {
+    rows.forEach(function(row, idx){
       const id      = String(row[0]);
       const name    = row[1];
-      const value   = row[2];
+      const num     = row[2];
       const updated = String(row[3]);
+      const prefix  = row[4] ? String(row[4]) : String.fromCharCode(65+idx);
+      const token   = prefix + num;
 
-      /* Create card if first time seeing this counter */
-      if(!document.getElementById("card-" + id)){
+      if(!document.getElementById("card-"+id)){
         const card = document.createElement("div");
         card.className = "card";
-        card.id = "card-" + id;
-        card.innerHTML = `
-          <div class="counter-name">${name}</div>
-          <div class="token" id="token-${id}">${value}</div>
-        `;
+        card.id = "card-"+id;
+        card.innerHTML = `<div class="counter-name">${name}</div><div class="token" id="token-${id}">${token}</div>`;
         grid.appendChild(card);
       }
 
-      /* Update displayed token number */
-      const tokenEl = document.getElementById("token-" + id);
-      if(tokenEl) tokenEl.innerText = value;
+      const tokenEl = document.getElementById("token-"+id);
+      if(tokenEl) tokenEl.innerText = token;
 
-      /* Detect change: UUID in column 4 changed = next / prev / repeat fired */
-      if(initialized && lastUpdated[id] !== undefined && lastUpdated[id] !== updated){
+      if(initialized && lastUpdated[id]!==undefined && lastUpdated[id]!==updated){
         beep();
-        speak("Token " + value + " please proceed to counter " + name);
+        speak("Token "+token+" please proceed to counter "+name);
         if(tokenEl) triggerFlash(tokenEl);
       }
 
       lastUpdated[id] = updated;
     });
 
-    /* Remove cards for counters that were deleted */
-    Array.from(grid.children).forEach(card => {
-      const cardId = card.id.replace("card-", "");
-      if(!ids.includes(cardId)) grid.removeChild(card);
+    Array.from(grid.children).forEach(function(card){
+      if(!ids.includes(card.id.replace("card-",""))) grid.removeChild(card);
     });
 
     initialized = true;
-  })
-  .catch(err => console.warn("Load error:", err));
+  });
 }
 
-/* ── POLL every 3 seconds ── */
-setInterval(() => { if(audioUnlocked) load(); }, 3000);
-
+setInterval(function(){ if(audioUnlocked) load(); }, 3000);
 </script>
 </body>
 </html>
