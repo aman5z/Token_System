@@ -252,7 +252,7 @@ th{color:var(--subtext);font-size:13px;text-transform:uppercase;}
       <h3>Print Preview</h3>
       <div id="printArea">
         <img id="printLogo" style="display:none">
-        <div id="printTitle">Service Token</div>
+        <div id="printTitle">Token</div>
         <div id="printSub"></div>
         <div id="printCounterName"></div>
         <div id="printToken">--</div>
@@ -439,7 +439,7 @@ function updatePrintPreview(tokenValue, counterName){
   printCounterNameValue = counterName;
   document.getElementById("printToken").innerText       = tokenValue;
   document.getElementById("printCounterName").innerText = counterName;
-  document.getElementById("printTitle").innerText       = document.getElementById("printTitleInput").value || "Service Token";
+  document.getElementById("printTitle").innerText       = document.getElementById("printTitleInput").value || "Token";
   document.getElementById("printSub").innerText         = document.getElementById("printSubInput").value;
   const now  = new Date();
   const dd   = String(now.getDate()).padStart(2,"0");
