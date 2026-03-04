@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Live Token Display</title>
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+}
+body{
+height:100vh;
+font-family:Arial, sans-serif;
+background:linear-gradient(135deg,#020617,#0f172a,#1e293b);
+color:#fff;
+display:flex;
+align-items:center;
+justify-content:center;
+overflow:hidden;
+}
+.header{
+position:absolute;
+top:30px;
+font-size:40px;
+font-weight:bold;
+letter-spacing:3px;
+color:#38bdf8;
+text-shadow:0 0 15px rgba(56,189,248,0.6);
+}
+.grid{
+width:92%;
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+gap:40px;
+}
+.card{
+background:rgba(30,41,59,0.8);
+border:1px solid rgba(255,255,255,0.1);
+border-radius:20px;
+padding:30px;
+text-align:center;
+backdrop-filter:blur(10px);
+box-shadow:0 10px 40px rgba(0,0,0,0.6),0 0 25px rgba(59,130,246,0.2);
+transition:0.4s ease;
+}
+.card:hover{ transform:scale(1.03); }
+.counter-name{
+font-size:32px;
+margin-bottom:20px;
+color:#38bdf8;
+font-weight:bold;
+letter-spacing:1px;
+}
+.token{
+font-size:120px;
+font-weight:bold;
+background:linear-gradient(90deg,#22c55e,#4ade80);
+-webkit-background-clip:text;
+-webkit-text-fill-color:transparent;
+transition:0.4s ease;
+}
+.flash{
+animation:flashAnim 0.9s ease forwards;
+}
+@keyframes flashAnim{
+0%  { transform:scale(1);   filter:brightness(1);   }
+40% { transform:scale(1.3); filter:brightness(2.5); }
+100%{ transform:scale(1);   filter:brightness(1);   }
+}
+.footer{
+position:absolute;
+bottom:20px;
+font-size:14px;
+opacity:0.6;
+}
+/* UNMUTE OVERLAY */
+#unmuteOverlay{
+position:fixed;
+inset:0;
+background:rgba(2,6,23,0.92);
+display:flex;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+z-index:999;
+cursor:pointer;
+gap:16px;
+}
+#unmuteOverlay .btn{
+background:#38bdf8;
+color:#000;
+font-size:22px;
+font-weight:bold;
+padding:18px 48px;
+border-radius:12px;
+letter-spacing:1px;
+}
+#unmuteOverlay p{
+font-size:15px;
+opacity:0.6;
+}
+</style>
+</head>
+<body>
+
+<div id="unmuteOverlay" onclick="unlock()">
+  <div class="btn">▶ Click to Start Display</div>
+  <p>Audio and voice announcements require one click to activate</p>
+</div>
+
+<div class="header">TOKEN DISPLAY</div>
+<div class="grid" id="grid"></div>
+<div class="footer">Live Queue Display</div>
+
+<script>
+
+const API = "https://script.google.com/macros/s/AKfycbyoaMx2_wAdgHIEBDslXotAHwmSa2wSqGeQjfRgOm6Wge0f4zJT8CTLmdMBYN30mRBAyg/exec";
+
+let lastUpdated  = {};
+let initialized  = false;
+let audioUnlocked = false;
+
+/* ── UNLOCK: must happen on a real user click ── */
+function unlock(){
+  document.getElementById("unmuteOverlay").style.display = "none";
+
+  /* Warm up SpeechSynthesis */
+  const warm = new SpeechSynthesisUtterance(" ");
+  warm.volume = 0;
+  speechSynthesis.speak(warm);
+
+  /* Warm up AudioContext */
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const buf = ctx.createBuffer(1, 1, 22050);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(ctx.destination);
+  src.start(0);
+
+  audioUnlocked = true;
+  load();
+}
+
+/* ── BEEP using Web Audio (no external URL needed) ── */
+function beep(){
+  try{
+    const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.6);
+  }catch(err){ console.warn("Beep error:", err); }
+}
+
+/* ── VOICE ── */
+function speak(message){
+  try{
+    speechSynthesis.cancel();
+    const utt   = new SpeechSynthesisUtterance(message);
+    utt.lang    = "en-US";
+    utt.rate    = 0.9;
+    utt.pitch   = 1;
+    utt.volume  = 1;
+    speechSynthesis.speak(utt);
+  }catch(err){ console.warn("Speak error:", err); }
+}
+
+/* ── FLASH animation (force reflow so it always replays) ── */
+function triggerFlash(el){
+  el.classList.remove("flash");
+  void el.offsetWidth;
+  el.classList.add("flash");
+  el.addEventListener("animationend", () => el.classList.remove("flash"), {once:true});
+}
+
+/* ── MAIN LOAD & DIFF ── */
+function load(){
+  if(!audioUnlocked) return;
+
+  fetch(API, {
+    method: "POST",
+    body: new URLSearchParams({ action: "getCountersPublic" })
+  })
+  .then(r => r.json())
+  .then(data => {
+
+    const grid = document.getElementById("grid");
+    const rows = data.slice(1);
+    const ids  = rows.map(r => String(r[0]));
+
+    rows.forEach(row => {
+      const id      = String(row[0]);
+      const name    = row[1];
+      const value   = row[2];
+      const updated = String(row[3]);
+
+      /* Create card if first time seeing this counter */
+      if(!document.getElementById("card-" + id)){
+        const card = document.createElement("div");
+        card.className = "card";
+        card.id = "card-" + id;
+        card.innerHTML = `
+          <div class="counter-name">${name}</div>
+          <div class="token" id="token-${id}">${value}</div>
+        `;
+        grid.appendChild(card);
+      }
+
+      /* Update displayed token number */
+      const tokenEl = document.getElementById("token-" + id);
+      if(tokenEl) tokenEl.innerText = value;
+
+      /* Detect change: UUID in column 4 changed = next / prev / repeat fired */
+      if(initialized && lastUpdated[id] !== undefined && lastUpdated[id] !== updated){
+        beep();
+        speak("Token " + value + " please proceed to counter " + name);
+        if(tokenEl) triggerFlash(tokenEl);
+      }
+
+      lastUpdated[id] = updated;
+    });
+
+    /* Remove cards for counters that were deleted */
+    Array.from(grid.children).forEach(card => {
+      const cardId = card.id.replace("card-", "");
+      if(!ids.includes(cardId)) grid.removeChild(card);
+    });
+
+    initialized = true;
+  })
+  .catch(err => console.warn("Load error:", err));
+}
+
+/* ── POLL every 3 seconds ── */
+setInterval(() => { if(audioUnlocked) load(); }, 3000);
+
+</script>
+</body>
+</html>

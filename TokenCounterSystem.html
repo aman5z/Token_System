@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Token Counter System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh;}
+.container{max-width:1100px;margin:auto;padding:30px;}
+.card{background:#1e293b;padding:20px;border-radius:10px;margin-bottom:20px;}
+h2,h3{margin-bottom:15px}
+input{padding:8px;border-radius:6px;border:none;margin:5px 0;width:100%;}
+button{padding:8px 14px;border:none;border-radius:6px;cursor:pointer;background:#3b82f6;color:#fff;margin-top:6px;}
+button:hover{background:#2563eb;}
+.logout{background:#ef4444;float:right;}
+.admin-only{display:none}
+table{width:100%;border-collapse:collapse;margin-top:15px;}
+th,td{padding:10px;border-bottom:1px solid #334155;text-align:left;}
+.token-number{font-weight:bold;color:#22c55e;font-size:22px;letter-spacing:2px;}
+#printArea{background:#fff;color:#000;width:280px;margin:auto;padding:20px;text-align:center;border-radius:6px;}
+#printLogo{display:block;margin:0 auto 10px auto;max-width:120px;}
+#printTitle{font-size:20px;font-weight:bold;margin-bottom:4px;}
+#printSub{font-size:14px;margin-bottom:15px;}
+#printCounterName{font-size:16px;font-weight:bold;margin-bottom:4px;color:#555;text-transform:uppercase;letter-spacing:1px;}
+#printToken{font-size:50px;font-weight:bold;margin:10px 0;}
+#printTime{font-size:12px;margin-top:8px;}
+@media print{
+  body *{visibility:hidden;}
+  #printArea,#printArea *{visibility:visible;}
+  #printArea{position:absolute;left:0;right:0;top:0;margin:auto;}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div id="loginBox" class="card">
+    <h2>Token System Login</h2>
+    <input id="username" placeholder="Username">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+  </div>
+
+  <div id="dashboard" style="display:none">
+
+    <div class="card">
+      <h3>Token Dashboard <button class="logout" onclick="logout()">Logout</button></h3>
+      <h3>Ticket Setup</h3>
+      <input id="printTitleInput" placeholder="Heading (Example: Clinic Name)">
+      <input id="printSubInput" placeholder="Sub Heading (Example: Token Service)">
+      <input type="file" id="logoUpload">
+    </div>
+
+    <div class="card">
+      <h3>Print Preview</h3>
+      <div id="printArea">
+        <img id="printLogo" style="display:none">
+        <div id="printTitle">Service Token</div>
+        <div id="printSub"></div>
+        <div id="printCounterName"></div>
+        <div id="printToken">--</div>
+        <div id="printTime"></div>
+      </div>
+      <button onclick="printTicket()">Print Token</button>
+    </div>
+
+    <div class="card">
+      <h3>Counters</h3>
+      <table id="counterTable"></table>
+    </div>
+
+    <div class="card admin-only">
+      <h3>Admin Controls</h3>
+      <input id="newCounterName" placeholder="New Counter Name">
+      <button onclick="addCounter()">Add Counter</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = "https://script.google.com/macros/s/AKfycbyoaMx2_wAdgHIEBDslXotAHwmSa2wSqGeQjfRgOm6Wge0f4zJT8CTLmdMBYN30mRBAyg/exec";
+
+let authToken = localStorage.getItem("token");
+let role = "";
+let printTokenValue = "--";
+let printCounterNameValue = "";
+
+/* ── LOGIN ── */
+function login(){
+  fetch(API,{method:"POST",body:new URLSearchParams({
+    action:"login",
+    username:document.getElementById("username").value,
+    password:document.getElementById("password").value
+  })})
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.success){ localStorage.setItem("token",d.token); location.reload(); }
+    else alert("Login failed");
+  });
+}
+
+/* ── INIT ── */
+if(authToken) validate();
+
+function validate(){
+  fetch(API,{method:"POST",body:new URLSearchParams({action:"validate",token:authToken})})
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.valid){
+      role = d.role;
+      document.getElementById("loginBox").style.display = "none";
+      document.getElementById("dashboard").style.display = "block";
+      if(role==="Admin") document.querySelectorAll(".admin-only").forEach(el=>el.style.display="block");
+      loadCounters();
+    } else logout();
+  });
+}
+
+/* ── RENDER TABLE (does NOT touch print area) ── */
+function renderTable(data){
+  let html = "<tr><th>Name</th><th>Token</th>";
+  if(role==="Admin") html += "<th>Actions</th>";
+  html += "</tr>";
+  for(let i=1;i<data.length;i++){
+    const id    = data[i][0];
+    const name  = data[i][1];
+    const value = data[i][2];
+    html += `<tr><td>${name}</td><td class="token-number">${value}</td>`;
+    if(role==="Admin"){
+      html += `<td>
+        <button onclick="clickPrev('${id}')">Prev</button>
+        <button onclick="clickNext('${id}')">Next</button>
+        <button onclick="renameCounter('${id}')">Rename</button>
+        <button onclick="deleteCounter('${id}')">Delete</button>
+        <button style="background:#f59e0b" onclick="clickRepeat('${id}')">Repeat</button>
+      </td>`;
+    }
+    html += "</tr>";
+  }
+  document.getElementById("counterTable").innerHTML = html;
+}
+
+/* ── LOAD COUNTERS (auto-refresh, table only) ── */
+function loadCounters(){
+  fetch(API,{method:"POST",body:new URLSearchParams({action:"getCounters",token:authToken})})
+  .then(r=>r.json())
+  .then(data=>renderTable(data));
+}
+
+setInterval(()=>{ if(authToken) loadCounters(); }, 5000);
+
+/* ── UPDATE PRINT PREVIEW ── */
+function updatePrintPreview(tokenValue, counterName){
+  printTokenValue       = tokenValue;
+  printCounterNameValue = counterName;
+  document.getElementById("printToken").innerText       = tokenValue;
+  document.getElementById("printCounterName").innerText = counterName;
+  document.getElementById("printTitle").innerText       = document.getElementById("printTitleInput").value || "Service Token";
+  document.getElementById("printSub").innerText         = document.getElementById("printSubInput").value;
+  const now  = new Date();
+  const dd   = String(now.getDate()).padStart(2,"0");
+  const mm   = String(now.getMonth()+1).padStart(2,"0");
+  const yyyy = now.getFullYear();
+  document.getElementById("printTime").innerText = `${dd} ${mm} ${yyyy} ${now.toLocaleTimeString()}`;
+}
+
+function printTicket(){
+  updatePrintPreview(printTokenValue, printCounterNameValue);
+  window.print();
+}
+
+/* ── LOGO ── */
+document.getElementById("logoUpload").addEventListener("change",function(){
+  if(!this.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = function(){
+    const img = document.getElementById("printLogo");
+    img.src = reader.result;
+    img.style.display = "block";
+  };
+  reader.readAsDataURL(this.files[0]);
+});
+
+/* ── SINGLE ACTION HANDLER for Next / Prev / Repeat ──
+   1. Call backend action
+   2. Fetch fresh counter data (one fetch)
+   3. Update print preview with that counter's data
+   4. Render table from same data
+   No double fetches. No race conditions.
+*/
+function doCounterAction(backendAction, id){
+  fetch(API,{method:"POST",body:new URLSearchParams({
+    action: backendAction,
+    token:  authToken,
+    counterId: id
+  })})
+  .then(r=>r.json())
+  .then(()=>{
+    fetch(API,{method:"POST",body:new URLSearchParams({
+      action:"getCounters",
+      token: authToken
+    })})
+    .then(r=>r.json())
+    .then(data=>{
+      for(let i=1;i<data.length;i++){
+        if(String(data[i][0])===String(id)){
+          updatePrintPreview(data[i][2], data[i][1]);
+          break;
+        }
+      }
+      renderTable(data);
+    });
+  });
+}
+
+function clickNext(id)   { doCounterAction("nextToken",    id); }
+function clickPrev(id)   { doCounterAction("previousToken",id); }
+function clickRepeat(id) { doCounterAction("repeatToken",  id); }
+
+/* ── ADMIN ACTIONS ── */
+function addCounter(){
+  fetch(API,{method:"POST",body:new URLSearchParams({
+    action:"addCounter", token:authToken,
+    name:document.getElementById("newCounterName").value
+  })}).then(()=>{ document.getElementById("newCounterName").value=""; loadCounters(); });
+}
+
+function renameCounter(id){
+  const newName = prompt("New name?");
+  if(!newName) return;
+  fetch(API,{method:"POST",body:new URLSearchParams({
+    action:"renameCounter", token:authToken, counterId:id, newName:newName
+  })}).then(()=>loadCounters());
+}
+
+function deleteCounter(id){
+  if(!confirm("Delete counter?")) return;
+  fetch(API,{method:"POST",body:new URLSearchParams({
+    action:"deleteCounter", token:authToken, counterId:id
+  })}).then(()=>loadCounters());
+}
+
+/* ── LOGOUT ── */
+function logout(){
+  localStorage.removeItem("token");
+  location.reload();
+}
+</script>
+</body>
+</html>
