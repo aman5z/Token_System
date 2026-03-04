@@ -1,102 +1,211 @@
 <!DOCTYPE html>
-<html>
+<html data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <title>Live Token Display</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-*{
-margin:0;
-padding:0;
-box-sizing:border-box;
+*{ margin:0; padding:0; box-sizing:border-box; }
+
+[data-theme="dark"]{
+  --bg:     linear-gradient(135deg,#000000,#0a0f1e,#0f172a);
+  --card:   rgba(30,41,59,0.8);
+  --border: rgba(255,255,255,0.1);
+  --text:   #fff;
+  --sub:    rgba(255,255,255,0.6);
+  --name:   #38bdf8;
+  --topbar: rgba(0,0,0,0.3);
+  --tbborder: rgba(255,255,255,0.08);
 }
-body{
-height:100vh;
-font-family:Arial, sans-serif;
-background:linear-gradient(135deg,#020617,#0f172a,#1e293b);
-color:#fff;
-display:flex;
-align-items:center;
-justify-content:center;
-overflow:hidden;
+[data-theme="light"]{
+  --bg:     linear-gradient(135deg,#f0f4ff,#e8eeff,#dde6ff);
+  --card:   rgba(255,255,255,0.85);
+  --border: rgba(99,102,241,0.2);
+  --text:   #1e1b4b;
+  --sub:    #6b7280;
+  --name:   #6366f1;
+  --topbar: rgba(255,255,255,0.4);
+  --tbborder: rgba(99,102,241,0.15);
 }
 
-.grid{
-width:92%;
-display:grid;
-grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
-gap:40px;
+body{
+  min-height:100vh;
+  font-family:Arial,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  overflow-x:hidden;
+  transition:background 0.3s;
 }
+
+/* ── TOPBAR ── */
+.topbar{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:10px 16px;
+  background:var(--topbar);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--tbborder);
+  position:sticky;
+  top:0;
+  z-index:50;
+}
+.topbar-left{ display:flex; align-items:center; gap:10px; }
+.topbar-center{ position:absolute; left:50%; transform:translateX(-50%); text-align:center; }
+#clock{ font-size:14px; color:var(--sub); font-variant-numeric:tabular-nums; white-space:nowrap; }
+#weather{ font-size:13px; color:var(--sub); margin-top:2px; }
+
+.tb-btn{
+  padding:7px 14px;
+  border-radius:8px;
+  border:1px solid var(--tbborder);
+  background:var(--card);
+  color:var(--text);
+  font-size:13px;
+  font-weight:bold;
+  cursor:pointer;
+  text-decoration:none;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  transition:background 0.2s;
+}
+.tb-btn:hover{ opacity:0.85; }
+
+#themeBtn{
+  width:38px; height:38px;
+  border-radius:50%;
+  border:1px solid var(--tbborder);
+  background:var(--card);
+  color:var(--text);
+  font-size:18px;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:transform 0.4s ease, background 0.3s;
+}
+#themeBtn.spin{ animation:spinOnce 0.5s ease; }
+@keyframes spinOnce{ from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+/* ── GRID ── */
+.grid-wrap{
+  width:100%;
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:30px 20px;
+}
+.grid{
+  width:100%;
+  max-width:1200px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:30px;
+}
+
 .card{
-background:rgba(30,41,59,0.8);
-border:1px solid rgba(255,255,255,0.1);
-border-radius:20px;
-padding:30px;
-text-align:center;
-backdrop-filter:blur(10px);
-box-shadow:0 10px 40px rgba(0,0,0,0.6),0 0 25px rgba(59,130,246,0.2);
-transition:0.4s ease;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:30px 20px;
+  text-align:center;
+  backdrop-filter:blur(10px);
+  box-shadow:0 10px 40px rgba(0,0,0,0.3),0 0 20px rgba(59,130,246,0.1);
+  transition:transform 0.4s ease, background 0.3s;
+}
+[data-theme="light"] .card{
+  box-shadow:0 4px 24px rgba(99,102,241,0.12);
 }
 .card:hover{ transform:scale(1.03); }
+
 .counter-name{
-font-size:32px;
-margin-bottom:20px;
-color:#38bdf8;
-font-weight:bold;
-letter-spacing:1px;
+  font-size:28px;
+  margin-bottom:16px;
+  color:var(--name);
+  font-weight:bold;
+  letter-spacing:1px;
 }
 .token{
-font-size:120px;
-font-weight:bold;
-background:linear-gradient(90deg,#22c55e,#4ade80);
--webkit-background-clip:text;
--webkit-text-fill-color:transparent;
-transition:0.4s ease;
+  font-size:110px;
+  font-weight:bold;
+  background:linear-gradient(90deg,#22c55e,#4ade80);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  line-height:1.1;
 }
-.flash{
-animation:flashAnim 0.9s ease forwards;
-}
-@keyframes flashAnim{
-0%  { transform:scale(1);   filter:brightness(1);   }
-40% { transform:scale(1.3); filter:brightness(2.5); }
-100%{ transform:scale(1);   filter:brightness(1);   }
+[data-theme="light"] .token{
+  background:linear-gradient(90deg,#7c3aed,#6366f1);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
 }
 
-/* UNMUTE OVERLAY */
+.flash{ animation:flashAnim 0.9s ease forwards; }
+@keyframes flashAnim{
+  0%  { transform:scale(1);   filter:brightness(1);   }
+  40% { transform:scale(1.3); filter:brightness(2.5); }
+  100%{ transform:scale(1);   filter:brightness(1);   }
+}
+
+/* ── OVERLAY ── */
 #unmuteOverlay{
-position:fixed;
-inset:0;
-background:rgba(2,6,23,0.92);
-display:flex;
-flex-direction:column;
-align-items:center;
-justify-content:center;
-z-index:999;
-cursor:pointer;
-gap:16px;
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.88);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  z-index:999;
+  cursor:pointer;
+  gap:12px;
 }
-#unmuteOverlay .btn{
-background:#38bdf8;
-color:#000;
-font-size:22px;
-font-weight:bold;
-padding:18px 48px;
-border-radius:12px;
-letter-spacing:1px;
+.overlay-btn{
+  background:#38bdf8;
+  color:#000;
+  font-size:20px;
+  font-weight:bold;
+  padding:16px 44px;
+  border-radius:12px;
+  letter-spacing:1px;
 }
-#unmuteOverlay p{
-font-size:15px;
-opacity:0.6;
+.overlay-sub{ font-size:14px; color:rgba(255,255,255,0.5); }
+
+/* ── MOBILE ── */
+@media(max-width:600px){
+  .grid{ grid-template-columns:1fr; gap:20px; }
+  .token{ font-size:80px; }
+  .counter-name{ font-size:22px; }
+  #clock{ font-size:11px; }
+  .tb-btn{ font-size:11px; padding:5px 10px; }
+  .topbar-center{ position:static; transform:none; text-align:center; flex:1; }
+  .topbar{ flex-wrap:wrap; gap:6px; }
 }
 </style>
 </head>
 <body>
 
 <div id="unmuteOverlay" onclick="unlock()">
-  <div class="btn">Click to Start Token Display</div>
+  <div class="overlay-btn">▶ Click to Start Token Display</div>
+  <div class="overlay-sub">Tap anywhere to enable audio &amp; go fullscreen</div>
 </div>
 
-<div class="grid" id="grid"></div>
+<div class="topbar">
+  <div class="topbar-left">
+    <a class="tb-btn" href="https://aman5z.github.io/Token_System/TokenCounterSystem.html" target="_blank">🔐 Login</a>
+  </div>
+  <div class="topbar-center">
+    <div id="clock"></div>
+    <div id="weather"></div>
+  </div>
+  <button id="themeBtn" onclick="toggleTheme()">🌙</button>
+</div>
 
+<div class="grid-wrap">
+  <div class="grid" id="grid"></div>
+</div>
 
 <script>
 const API = "https://script.google.com/macros/s/AKfycbzkzFg2BMA0b-bOU-O7Zg9knhfL9-1Pw5QRdHk8NePBYPmZwQjEJeIeTjA9NJc0zcly1A/exec";
@@ -105,6 +214,64 @@ let lastUpdated  = {};
 let initialized  = false;
 let audioUnlocked = false;
 let cbCount = 0;
+
+/* ── CLOCK ── */
+function updateClock(){
+  const now = new Date();
+  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  let h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  const time = String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0")+ampm;
+  document.getElementById("clock").innerText = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}  ${time}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ── WEATHER ── */
+function weatherEmoji(code, temp){
+  if(code <= 1) return temp >= 30 ? "☀️" : "🌤️";
+  if(code <= 3) return "⛅";
+  if(code <= 48) return "🌫️";
+  if(code <= 67) return "🌧️";
+  if(code <= 77) return "❄️";
+  if(code <= 82) return "🌦️";
+  return "⛈️";
+}
+
+function loadWeather(){
+  if(!navigator.geolocation){ return; }
+  navigator.geolocation.getCurrentPosition(function(pos){
+    const lat = pos.coords.latitude.toFixed(2);
+    const lon = pos.coords.longitude.toFixed(2);
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&temperature_unit=celsius`)
+      .then(r=>r.json())
+      .then(d=>{
+        const temp = Math.round(d.current_weather.temperature);
+        const code = d.current_weather.weathercode;
+        const emoji = weatherEmoji(code, temp);
+        document.getElementById("weather").innerText = `${emoji} ${temp}°C`;
+      }).catch(()=>{});
+  }, ()=>{});
+}
+loadWeather();
+
+/* ── THEME ── */
+const savedTheme = localStorage.getItem("displayTheme") || "dark";
+document.documentElement.setAttribute("data-theme", savedTheme);
+document.getElementById("themeBtn").innerText = savedTheme === "dark" ? "🌙" : "☀️";
+
+function toggleTheme(){
+  const btn = document.getElementById("themeBtn");
+  btn.classList.remove("spin");
+  void btn.offsetWidth;
+  btn.classList.add("spin");
+  const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("displayTheme", next);
+  btn.innerText = next === "dark" ? "🌙" : "☀️";
+}
 
 /* ── JSONP ── */
 function jsonp(params, callback){
@@ -123,18 +290,24 @@ function jsonp(params, callback){
   document.head.appendChild(s);
 }
 
-/* ── UNLOCK ── */
+/* ── UNLOCK + FULLSCREEN ── */
 function unlock(){
   document.getElementById("unmuteOverlay").style.display = "none";
+
+  // Fullscreen
+  const el = document.documentElement;
+  if(el.requestFullscreen) el.requestFullscreen();
+  else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+
+  // Warm up audio
   const warm = new SpeechSynthesisUtterance(" ");
   warm.volume = 0;
   speechSynthesis.speak(warm);
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
   const buf = ctx.createBuffer(1,1,22050);
   const src = ctx.createBufferSource();
-  src.buffer = buf;
-  src.connect(ctx.destination);
-  src.start(0);
+  src.buffer = buf; src.connect(ctx.destination); src.start(0);
+
   audioUnlocked = true;
   load();
 }
@@ -145,25 +318,24 @@ function beep(){
     const ctx  = new (window.AudioContext || window.webkitAudioContext)();
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+    osc.connect(gain); gain.connect(ctx.destination);
     osc.type = "sine";
     osc.frequency.setValueAtTime(880, ctx.currentTime);
     gain.gain.setValueAtTime(1, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.6);
-  }catch(err){}
+  }catch(e){}
 }
 
 /* ── VOICE ── */
-function speak(message){
+function speak(msg){
   try{
     speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(message);
+    const utt = new SpeechSynthesisUtterance(msg);
     utt.lang="en-US"; utt.rate=0.9; utt.pitch=1; utt.volume=1;
     speechSynthesis.speak(utt);
-  }catch(err){}
+  }catch(e){}
 }
 
 /* ── FLASH ── */
