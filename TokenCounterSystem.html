@@ -35,7 +35,7 @@ th,td{padding:10px;border-bottom:1px solid #334155;text-align:left;}
 <body>
 <div class="container">
 
-  <div id="loginBox" class="card">
+  <div id="loginBox" class="card" style="max-width:380px;margin:80px auto;">
     <h2>Token System Login</h2>
     <input id="username" placeholder="Username">
     <input id="password" type="password" placeholder="Password">
@@ -80,48 +80,35 @@ th,td{padding:10px;border-bottom:1px solid #334155;text-align:left;}
 </div>
 
 <script>
-const API = "https://script.google.com/macros/s/AKfycbw8lLc3AAO8EvtWkoIEdlG2K4dNYSECEJHvz7TTMdJQc04SFA37IRJj6s-9O2MupcYtFw/exec";
+const API = "https://script.google.com/macros/s/AKfycbyoaMx2_wAdgHIEBDslXotAHwmSa2wSqGeQjfRgOm6Wge0f4zJT8CTLmdMBYN30mRBAyg/exec";
 
 let authToken = localStorage.getItem("token");
 let role = "";
 let printTokenValue = "--";
 let printCounterNameValue = "";
 
-/* ── JSONP - bypasses CORS completely ── */
-let cbCount = 0;
-function jsonp(params, callback){
-  const cbName = "_cb" + (++cbCount);
-  window[cbName] = function(data){
-    delete window[cbName];
-    const el = document.getElementById(cbName);
-    if(el) document.head.removeChild(el);
-    if(callback) callback(data);
-  };
-  params.callback = cbName;
-  const qs = Object.entries(params).map(([k,v])=>encodeURIComponent(k)+"="+encodeURIComponent(v)).join("&");
-  const s = document.createElement("script");
-  s.id = cbName;
-  s.src = API + "?" + qs;
-  document.head.appendChild(s);
-}
-
 /* ── LOGIN ── */
 function login(){
-  jsonp({
+  fetch(API,{method:"POST",body:new URLSearchParams({
     action:"login",
     username:document.getElementById("username").value,
     password:document.getElementById("password").value
-  }, function(d){
-    if(d && d.success){ localStorage.setItem("token",d.token); authToken=d.token; validate(); }
+  })})
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.success){ localStorage.setItem("token",d.token); location.reload(); }
     else alert("Login failed");
   });
 }
 
+/* ── INIT ── */
 if(authToken) validate();
 
 function validate(){
-  jsonp({action:"validate",token:authToken}, function(d){
-    if(d && d.valid){
+  fetch(API,{method:"POST",body:new URLSearchParams({action:"validate",token:authToken})})
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.valid){
       role = d.role;
       document.getElementById("loginBox").style.display = "none";
       document.getElementById("dashboard").style.display = "block";
@@ -131,24 +118,23 @@ function validate(){
   });
 }
 
-/* ── RENDER TABLE ── */
+/* ── RENDER TABLE (does NOT touch print area) ── */
 function renderTable(data){
-  if(!Array.isArray(data)) return;
   let html = "<tr><th>Name</th><th>Token</th>";
   if(role==="Admin") html += "<th>Actions</th>";
   html += "</tr>";
   for(let i=1;i<data.length;i++){
-    const id    = String(data[i][0]);
-    const name  = String(data[i][1]);
-    const value = Number(data[i][2]);
+    const id    = data[i][0];
+    const name  = data[i][1];
+    const value = data[i][2];
     html += `<tr><td>${name}</td><td class="token-number">${value}</td>`;
     if(role==="Admin"){
       html += `<td>
-        <button onclick="clickPrev('${id}','${name}',${value})">Prev</button>
-        <button onclick="clickNext('${id}','${name}',${value})">Next</button>
+        <button onclick="clickPrev('${id}')">Prev</button>
+        <button onclick="clickNext('${id}')">Next</button>
         <button onclick="renameCounter('${id}')">Rename</button>
         <button onclick="deleteCounter('${id}')">Delete</button>
-        <button style="background:#f59e0b" onclick="clickRepeat('${id}','${name}',${value})">Repeat</button>
+        <button style="background:#f59e0b" onclick="clickRepeat('${id}')">Repeat</button>
       </td>`;
     }
     html += "</tr>";
@@ -156,11 +142,11 @@ function renderTable(data){
   document.getElementById("counterTable").innerHTML = html;
 }
 
-/* ── LOAD COUNTERS ── */
+/* ── LOAD COUNTERS (auto-refresh, table only) ── */
 function loadCounters(){
-  jsonp({action:"getCounters",token:authToken}, function(data){
-    if(data) renderTable(data);
-  });
+  fetch(API,{method:"POST",body:new URLSearchParams({action:"getCounters",token:authToken})})
+  .then(r=>r.json())
+  .then(data=>renderTable(data));
 }
 
 setInterval(()=>{ if(authToken) loadCounters(); }, 5000);
@@ -197,58 +183,69 @@ document.getElementById("logoUpload").addEventListener("change",function(){
   reader.readAsDataURL(this.files[0]);
 });
 
-/* ── NEXT / PREV / REPEAT ──
-   Print area uses values passed directly from button — no extra fetch needed.
-   Backend action updates UUID so display.html detects it and plays audio.
-   After action, reload table after 1s so values stay fresh.
-── */
-function clickNext(id, name, value){
-  updatePrintPreview(value + 1, name);
-  jsonp({action:"nextToken", token:authToken, counterId:id}, function(){
-    setTimeout(loadCounters, 1000);
+/* ── SINGLE ACTION HANDLER for Next / Prev / Repeat ──
+   1. Call backend action
+   2. Fetch fresh counter data (one fetch)
+   3. Update print preview with that counter's data
+   4. Render table from same data
+   No double fetches. No race conditions.
+*/
+function doCounterAction(backendAction, id){
+  fetch(API,{method:"POST",body:new URLSearchParams({
+    action: backendAction,
+    token:  authToken,
+    counterId: id
+  })})
+  .then(r=>r.json())
+  .then(()=>{
+    fetch(API,{method:"POST",body:new URLSearchParams({
+      action:"getCounters",
+      token: authToken
+    })})
+    .then(r=>r.json())
+    .then(data=>{
+      for(let i=1;i<data.length;i++){
+        if(String(data[i][0])===String(id)){
+          updatePrintPreview(data[i][2], data[i][1]);
+          break;
+        }
+      }
+      renderTable(data);
+    });
   });
 }
 
-function clickPrev(id, name, value){
-  const newVal = Math.max(1, value - 1);
-  updatePrintPreview(newVal, name);
-  jsonp({action:"previousToken", token:authToken, counterId:id}, function(){
-    setTimeout(loadCounters, 1000);
-  });
-}
-
-function clickRepeat(id, name, value){
-  updatePrintPreview(value, name);
-  jsonp({action:"repeatToken", token:authToken, counterId:id}, function(){
-    setTimeout(loadCounters, 1000);
-  });
-}
+function clickNext(id)   { doCounterAction("nextToken",    id); }
+function clickPrev(id)   { doCounterAction("previousToken",id); }
+function clickRepeat(id) { doCounterAction("repeatToken",  id); }
 
 /* ── ADMIN ACTIONS ── */
 function addCounter(){
-  jsonp({action:"addCounter",token:authToken,name:document.getElementById("newCounterName").value}, function(){
-    document.getElementById("newCounterName").value="";
-    loadCounters();
-  });
+  fetch(API,{method:"POST",body:new URLSearchParams({
+    action:"addCounter", token:authToken,
+    name:document.getElementById("newCounterName").value
+  })}).then(()=>{ document.getElementById("newCounterName").value=""; loadCounters(); });
 }
 
 function renameCounter(id){
   const newName = prompt("New name?");
   if(!newName) return;
-  jsonp({action:"renameCounter",token:authToken,counterId:id,newName:newName}, function(){ loadCounters(); });
+  fetch(API,{method:"POST",body:new URLSearchParams({
+    action:"renameCounter", token:authToken, counterId:id, newName:newName
+  })}).then(()=>loadCounters());
 }
 
 function deleteCounter(id){
   if(!confirm("Delete counter?")) return;
-  jsonp({action:"deleteCounter",token:authToken,counterId:id}, function(){ loadCounters(); });
+  fetch(API,{method:"POST",body:new URLSearchParams({
+    action:"deleteCounter", token:authToken, counterId:id
+  })}).then(()=>loadCounters());
 }
 
 /* ── LOGOUT ── */
 function logout(){
   localStorage.removeItem("token");
-  authToken = null;
-  document.getElementById("dashboard").style.display="none";
-  document.getElementById("loginBox").style.display="block";
+  location.reload();
 }
 </script>
 </body>
